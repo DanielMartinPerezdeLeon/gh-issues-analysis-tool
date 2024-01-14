@@ -1,11 +1,12 @@
 import logging
-import config, db_handlers
 import httpx
 import pandas as pd
+import importlib
 
-generic_transformations = [
-    'labels', 'stargazers', 'contributors'
-]
+
+import config
+import db_handlers
+import specials_process
 
 
 def transform_generic(df):
@@ -13,7 +14,11 @@ def transform_generic(df):
 
 
 def obtain_response(url: str) -> str or None:
-    response = httpx.get(url)
+    headers = {
+        "Authorization": config.actual_token  # use the token to have more api access
+    }
+
+    response = httpx.get(url=url, headers=headers)
 
     if response.status_code == 200:
         data = response.json()
@@ -22,29 +27,24 @@ def obtain_response(url: str) -> str or None:
     elif response.status_code == 404 or response.status_code == 304:
         logging.info(f"No data on {url}")
     elif response.status_code == 403:
-        #todo handle
+        # todo handle
         logging.info(f"API request superated, come back later")
+    # elif response.status_code == 401:
+        # todo handle logins
     else:
-        logging.error(f"Request failed with status code {response.status_code}: {response.text}")
-        raise Exception(f"Request failed with status code {response.status_code}: {response.text}")
+        logging.error(f"Request failed with status code {response.status_code}: {response.text} for {url}")
 
-
-def upload_dataframe(url: str) -> str or None:
-    response = httpx.get(url)
-
-    if response.status_code == 200:
-        data = response.json()
-        logging.debug(data)
-        return data
-    elif response.status_code == 404:
-        return None
-    else:
-        logging.error(f"Request failed with status code {response.status_code}: {response.text}")
-        raise Exception(f"Request failed with status code {response.status_code}: {response.text}")
+    return None
 
 
 def process_table(table: str):
-    url = config.api_urls.get(table)
+    if table in config.api_urls.get('generics'):
+        url = config.api_urls.get('generics').get(table)
+        generic = True
+    else:
+        url = config.api_urls.get('specials').get(table)
+        generic = False
+
     data = obtain_response(url)
 
     if data:
@@ -52,7 +52,12 @@ def process_table(table: str):
         try:
             df = pd.DataFrame(data)
 
-            df = df if table in generic_transformations else globals().get(f'transform_{table}', None)
+            # a bit complicated: if the table is in generic it doesn't do anything,
+            # BUT if the table is in specials it dinamically call the function process_(table_name)
+            # from specials_process
+            # crazy stuff
+            # if it is not generic nor exists that special process it tells
+            df = df if generic else getattr(specials_process, f'process_{table}', None)(df)
 
             if df is None:
                 raise Exception(f"Transformation function for table '{table}' not found."
@@ -71,14 +76,15 @@ def process_table(table: str):
             logging.info(f'Table {table} processed and uploaded successfully')
 
     else:
-        logging.error(f'No data found for {table} (404)')
+        logging.error(f'{table} NOT uploaded')
 
 
 def test():
     config.main()
     db_handlers.init()
-    for table in config.api_urls:
-        process_table(table)
+    # for table in config.api_urls.get('generics'):
+    #     process_table(table)
+    process_table('issues')
 
 
 if __name__ == "__main__":

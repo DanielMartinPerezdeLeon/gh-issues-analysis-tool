@@ -3,7 +3,7 @@ import logging
 
 config_values = {}
 api_urls = {}
-tables = {}
+actual_token = str
 
 
 # Config the logging
@@ -15,6 +15,7 @@ def configure_logging():
 # Load all env vars into the script
 def load_env():
     global config_values
+    global actual_token
 
     configure_logging()
     logging.info('Getting config values from environment variables...')
@@ -23,13 +24,17 @@ def load_env():
     os.environ['database_url'] = 'postgresql://postgres:postgres@localhost:5432/local'
     os.environ['repository_name'] = 'helpdesk-validator'
     os.environ['repository_owner'] = 'INSPIRE-MIF'
+    os.environ['tokens_list'] = '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'
 
     config_values = {
         'database_url': os.getenv('database_url'),
         'repository_name': os.getenv('repository_name'),
         'repository_owner': os.getenv('repository_owner'),
-        'schema_name': f"github_{os.getenv('repository_name')}"
+        'schema_name': f"github_{os.getenv('repository_name')}",
+        'tokens_list': os.getenv('tokens_list').split(',')
     }
+
+    actual_token = config_values.get('tokens_list')[0]
 
     for key, value in config_values.items():
         if not value:
@@ -48,20 +53,40 @@ def load_urls():
 
     api_urls = {
 
-        # 'issues': base_url + "/issues",
+        'base': base_url,
 
-        'labels': base_url + "/labels",
+        'generics': {
+            'stargazers': base_url + "/stargazers",
+            'contributors': base_url + '/contributors',
+            'labels': base_url + "/labels",
+            'collaborators': base_url + '/collaborators',
+            'subscribers': base_url + '/subscribers',
+            'subscription': base_url + '/subscription',
+            'watchers': base_url + '/watchers'
+        },
 
-        # forks,
+        'specials': {
+            'issues': base_url + "/issues?per_page=1",
+            # forks,
+            # 'tags': base_url + "/tags",
+        }
 
-        # collaborators,
-
-        # 'tags': base_url + "/tags",
-
-        'stargazers': base_url + "/stargazers",
-
-        'contributors': base_url + '/contributors'
     }
+
+
+# Change the token used for the next one to not get limited by the api
+def change_actual_token():
+    global actual_token
+
+    tokens_list = config_values.get('tokens_list')
+
+    next_index = tokens_list.index(actual_token) + 1
+
+    if next_index >= len(tokens_list):
+        logging.info('Out of tokens, returning to the first one')
+        actual_token = tokens_list[0]
+    else:
+        actual_token = tokens_list[next_index]
 
 
 def main():
