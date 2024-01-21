@@ -21,7 +21,7 @@ def load_env():
     logging.info('Getting config values from environment variables...')
 
     # todo borrar esto luego
-    os.environ['database_url'] = 'postgresql://postgres:postgres@localhost:5432/local'
+    os.environ['database_url'] = 'mongodb://localhost:27017'
     os.environ['repository_name'] = 'helpdesk-validator'
     os.environ['repository_owner'] = 'INSPIRE-MIF'
     os.environ['tokens_list'] = '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'
@@ -55,21 +55,18 @@ def load_urls():
 
         'base': base_url,
 
-        'generics': {
-            'stargazers': base_url + "/stargazers",
-            'contributors': base_url + '/contributors',
-            'labels': base_url + "/labels",
-            'collaborators': base_url + '/collaborators',
-            'subscribers': base_url + '/subscribers',
-            'subscription': base_url + '/subscription',
-            'watchers': base_url + '/watchers'
-        },
+        'stargazers': base_url + "/stargazers",
+        'contributors': base_url + '/contributors',
+        'labels': base_url + "/labels",
+        'collaborators': base_url + '/collaborators',
+        'subscribers': base_url + '/subscribers',
+        'subscription': base_url + '/subscription',
+        'watchers': base_url + '/watchers',
 
-        'specials': {
-            'issues': base_url + "/issues?per_page=1",
-            # forks,
-            # 'tags': base_url + "/tags",
-        }
+        'issues': base_url + "/issues",
+        # forks,
+        # 'tags': base_url + "/tags",
+
 
     }
 

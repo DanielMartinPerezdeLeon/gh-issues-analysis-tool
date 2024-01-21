@@ -1,27 +1,30 @@
 import logging
 import httpx
-import pandas as pd
-import importlib
-
 
 import config
 import db_handlers
-import specials_process
 
 
-def transform_generic(df):
-    return df
+def obtain_response(url: str, page: int = 0) -> str or None:
 
-
-def obtain_response(url: str) -> str or None:
     headers = {
         "Authorization": config.actual_token  # use the token to have more api access
     }
+
+    if page > 1:
+        url = url + f'?page={page}'
+
+    logging.debug(url)
 
     response = httpx.get(url=url, headers=headers)
 
     if response.status_code == 200:
         data = response.json()
+
+        # If len data > 30 means there are more pages, scrape them too and add their info
+        if len(data) >= 30:
+            data = data + obtain_response(url=url, page=page+1)
+
         logging.debug(data)
         return data
     elif response.status_code == 404 or response.status_code == 304:
@@ -30,7 +33,7 @@ def obtain_response(url: str) -> str or None:
         # todo handle
         logging.info(f"API request superated, come back later")
     # elif response.status_code == 401:
-        # todo handle logins
+    # todo handle logins
     else:
         logging.error(f"Request failed with status code {response.status_code}: {response.text} for {url}")
 
@@ -38,34 +41,19 @@ def obtain_response(url: str) -> str or None:
 
 
 def process_table(table: str):
-    if table in config.api_urls.get('generics'):
-        url = config.api_urls.get('generics').get(table)
-        generic = True
-    else:
-        url = config.api_urls.get('specials').get(table)
-        generic = False
+    logging.info(f'Processing {table}')
 
-    data = obtain_response(url)
+    url = config.api_urls.get(table)
+
+    data = obtain_response(url, page=1)
 
     if data:
 
+        logging.info(f"Data for {table} obtained")
+
         try:
-            df = pd.DataFrame(data)
 
-            # a bit complicated: if the table is in generic it doesn't do anything,
-            # BUT if the table is in specials it dinamically call the function process_(table_name)
-            # from specials_process
-            # crazy stuff
-            # if it is not generic nor exists that special process it tells
-            df = df if generic else getattr(specials_process, f'process_{table}', None)(df)
-
-            if df is None:
-                raise Exception(f"Transformation function for table '{table}' not found."
-                                f" Has this url process been created or added to generics?")
-
-            # Upload the transformed DataFrame to the database
-            df.to_sql(con=db_handlers.engine, schema=config.config_values.get('schema_name'), name=table,
-                      if_exists='replace', index=False, index_label='id')
+            db_handlers.set_data(table, data)
 
         except Exception as e:
             logging.error(f'Error processing or uploading {table}')
